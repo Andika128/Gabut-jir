@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <meta http-equiv="CONTENT-TYPE" content="text/html; charset=UTF-8">
+  <link rel="stylesheet" href="styles/style.css"/>
+  <title>Hello, World!</title>
+</head>
+<body>
+  <h1>
+    Hello, semua
+  </h1>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title></title>
+
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  padding: 18px 12px;
+  min-height: 100vh;
+  background: #17223b;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  overscroll-behavior: none;
+}
+
+h1 {
+  margin: 5px 0;
+  color: #75e1ff;
+  font-size: 28px;
+}
+
+.subtitle {
+  color: #d6e7ff;
+  font-size: 14px;
+  margin: 8px 0 18px;
+}
+
+#game {
+  position: relative;
+  width: 100%;
+  max-width: 700px;
+  margin: auto;
+  overflow: hidden;
+  border: 3px solid white;
+  border-radius: 16px;
+  background: #75ddff;
+  box-shadow: 0 8px 25px #0005;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+#hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.pill {
+  padding: 7px 11px;
+  border-radius: 20px;
+  background: #ffffffdf;
+  color: #17223b;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 18px;
+  background: #15213bc9;
+}
+
+#overlay h2 {
+  font-size: 28px;
+  margin: 0 0 10px;
+}
+
+#overlay p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 6px 0 18px;
+}
+
+button {
+  border: 0;
+  border-radius: 14px;
+  padding: 14px 22px;
+  background: #ffe45e;
+  color: #17223b;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#jump {
+  width: 100%;
+  max-width: 700px;
+  margin: 12px auto;
+  background: #47d7a1;
+  font-size: 18px;
+}
+
+#jump:active, button:active {
+  transform: scale(.98);
+}
+
+.help {
+  font-size: 13px;
+  color: #d1def5;
+  line-height: 1.6;
+}
+
+@media (max-width: 400px) {
+  body { padding: 12px 7px; }
+  h1 { font-size: 24px; }
+  #overlay h2 { font-size: 23px; }
+  #overlay p { font-size: 12px; }
+  button { padding: 12px 18px; }
+}
+</style>
+</head>
+
+<body>
+
+<h1>🌟game aa jolan ulah kena kana manuk jeng tong</h1>
+<div class="subtitle">
+  Lompat • Hindari burung • Kumpulkan koin
+</div>
+
+<div id="game">
+  <canvas id="canvas" width="700" height="350"></canvas>
+
+  <div id="hud">
+    <div class="pill">⭐ <span id="score">0</span></div>
+    <div class="pill">❤️ <span id="lives">3</span></div>
+  </div>
+
+  <div id="overlay">
+    <h2 id="title">🏃 aa jolan</h2>
+    <p id="message">
+      Siap untuk berpetualang?<br>
+      Lompat untuk menghindari rintangan.<br>
+      Kumpulkan koin sebanyak mungkin!
+    </p>
+    <button id="start">▶ MULAI MAIN</button>
+  </div>
+</div>
+
+<button id="jump">⬆ LOMPAT!</button>
+
+<div class="help">
+  Ketuk layar atau tombol LOMPAT untuk melompat.<br>
+  Hindari kotak dan burung ungu!
+</div>
+
+<script>
+"use strict";
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const scoreEl = document.getElementById("score");
+const livesEl = document.getElementById("lives");
+const overlay = document.getElementById("overlay");
+const titleEl = document.getElementById("title");
+const messageEl = document.getElementById("message");
+const startBtn = document.getElementById("start");
+const jumpBtn = document.getElementById("jump");
+
+const W = 700;
+const H = 350;
+const GROUND = 285;
+
+let player;
+let obstacles = [];
+let birds = [];
+let coins = [];
+
+let score = 0;
+let lives = 3;
+let speed = 300;
+let spawnTimer = 0;
+let elapsed = 0;
+let invincible = 0;
+
+let running = false;
+let lastTime = 0;
+let animationId = 0;
+
+function resetGame() {
+  player = {
+    x: 85,
+    y: GROUND - 48,
+    w: 36,
+    h: 48,
+    vy: 0
+  };
+
+  obstacles = [];
+  birds = [];
+  coins = [];
+
+  score = 0;
+  lives = 3;
+  speed = 300;
+  spawnTimer = 0;
+  elapsed = 0;
+  invincible = 0;
+
+  scoreEl.textContent = "0";
+  livesEl.textContent = "3";
+}
+
+function startGame() {
+  cancelAnimationFrame(animationId);
+  resetGame();
+
+  running = true;
+  lastTime = 0;
+
+  overlay.style.display = "none";
+  animationId = requestAnimationFrame(loop);
+}
+
+function jump() {
+  if (!running) return;
+
+  if (player.y >= GROUND - player.h - 0.5) {
+    player.vy = -680;
+  }
+}
+
+startBtn.addEventListener("click", startGame);
+
+jumpBtn.addEventListener("pointerdown", function(e) {
+  e.preventDefault();
+  jump();
+});
+
+canvas.addEventListener("pointerdown", function(e) {
+  e.preventDefault();
+  jump();
+});
+
+// Menggambar kotak dengan sudut membulat
+function rect(x, y, w, h, color, radius = 0) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+
+  const r = Math.min(radius, w / 2, h / 2);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawBackground() {
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, "#62cfff");
+  sky.addColorStop(1, "#e0faff");
+
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  // Matahari
+  ctx.fillStyle = "#ffe777";
+  ctx.beginPath();
+  ctx.arc(610, 60, 28, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Awan bergerak
+  ctx.fillStyle = "#ffffffd9";
+
+  for (let i = 0; i < 4; i++) {
+    const x = ((i * 210 - elapsed * 25) % 850 + 850) % 850 - 70;
+    ctx.beginPath();
+    ctx.arc(x, 80, 18, 0, Math.PI * 2);
+    ctx.arc(x + 23, 70, 24, 0, Math.PI * 2);
+    ctx.arc(x + 48, 81, 17, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Bukit
+  ctx.fillStyle = "#68ce91";
+
+  for (let i = 0; i < 9; i++) {
+    const x = ((i * 100 - elapsed * 45) % 900 + 900) % 900 - 100;
+
+    ctx.beginPath();
+    ctx.arc(x, GROUND - 10, 65, Math.PI, 0);
+    ctx.fill();
+  }
+
+  // Tanah
+  rect(0, GROUND, W, H - GROUND, "#9b592e");
+  rect(0, GROUND, W, 12, "#3fc95a");
+  rect(0, GROUND + 10, W, 5, "#b4f078");
+
+  // Tekstur tanah bergerak
+  for (let i = 0; i < 25; i++) {
+    let x = (i * 32 - elapsed * speed) % 800;
+    if (x < 0) x += 800;
+
+    rect(x, GROUND + 23, 14, 5, "#ca8045", 2);
+  }
+}
+
+function drawPlayer() {
+  const p = player;
+
+  if (
+    invincible > 0 &&
+    Math.floor(elapsed * 14) % 2 === 0
+  ) return;
+
+  // Kaki
+  rect(p.x + 5, p.y + 35, 10, 13, "#304b9b", 3);
+  rect(p.x + 22, p.y + 35, 10, 13, "#304b9b", 3);
+
+  // Badan
+  rect(p.x + 4, p.y + 19, 29, 23, "#ff715b", 7);
+
+  // Kepala
+  rect(p.x + 4, p.y, 29, 27, "#ffd1a1", 9);
+
+  // Rambut
+  rect(p.x + 2, p.y - 3, 30, 11, "#49352f", 5);
+  rect(p.x + 1, p.y + 3, 8, 9, "#49352f", 3);
+
+  // Mata
+  rect(p.x + 23, p.y + 10, 4, 5, "#202a43", 2);
+
+  // Tangan
+  rect(p.x - 3, p.y + 23, 10, 7, "#ffd1a1", 3);
+  rect(p.x + 29, p.y + 23, 10, 7, "#ffd1a1", 3);
+}
+
+function drawObstacle(o) {
+  rect(o.x, o.y, o.w, o.h, "#b86632", 5);
+  rect(o.x + 4, o.y + 4, o.w - 8, o.h - 8, "#e99b50", 3);
+
+  ctx.strokeStyle = "#a6532a";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+
+  ctx.moveTo(o.x, o.y + o.h / 2);
+  ctx.lineTo(o.x + o.w, o.y + o.h / 2);
+
+  ctx.moveTo(o.x + o.w / 2, o.y);
+  ctx.lineTo(o.x + o.w / 2, o.y + o.h);
+
+  ctx.stroke();
+}
+
+function drawBird(b) {
+  const flap = Math.sin(elapsed * 13 + b.phase) * 9;
+
+  ctx.save();
+  ctx.translate(b.x, b.y);
+
+  // Sayap mengepak
+  ctx.fillStyle = "#6246bd";
+  ctx.beginPath();
+  ctx.ellipse(-2, -flap / 2, 13, 5 + Math.abs(flap) / 2,
+    -0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Badan burung
+  ctx.fillStyle = "#906ce8";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 17, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Kepala
+  ctx.beginPath();
+  ctx.arc(12, -3, 9, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mata
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(15, -5, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.arc(16, -5, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Paruh
+  ctx.fillStyle = "#ffb536";
+  ctx.beginPath();
+  ctx.moveTo(19, -1);
+  ctx.lineTo(29, 2);
+  ctx.lineTo(19, 4);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawCoin(c) {
+  ctx.fillStyle = "#ffce36";
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, 11, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#e99b14";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = "#fff3a3";
+  ctx.beginPath();
+  ctx.arc(c.x - 3, c.y - 3, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function hit(a, b) {
+  const pad = 5;
+
+  return (
+    a.x + pad < b.x + b.w - pad &&
+    a.x + a.w - pad > b.x + pad &&
+    a.y + pad < b.y + b.h - pad &&
+    a.y + a.h - pad > b.y + pad
+  );
+}
+
+function endGame() {
+  running = false;
+
+  titleEl.textContent = "💫 GAME OVER!";
+  messageEl.innerHTML =
+    "Skor akhir: <b>" + Math.floor(score) +
+    "</b><br>Yuk coba lagi dan pecahkan rekor!";
+
+  startBtn.textContent = "🔄 MAIN LAGI";
+  overlay.style.display = "flex";
+}
+
+function update(dt) {
+  elapsed += dt;
+
+  // Kecepatan meningkat secara bertahap
+  speed = Math.min(540, 300 + score * 0.6);
+
+  // Fisika karakter
+  player.vy += 1700 * dt;
+  player.y += player.vy * dt;
+
+  if (player.y >= GROUND - player.h) {
+    player.y = GROUND - player.h;
+    player.vy = 0;
+  }
+
+  // Timer rintangan menggunakan detik
+  spawnTimer += dt;
+
+  const interval = Math.max(0.95, 1.55 - score / 800);
+
+  if (spawnTimer >= interval) {
+    spawnTimer -= interval;
+
+    if (Math.random() < 0.6) {
+      const h = 28 + Math.random() * 22;
+
+      obstacles.push({
+        x: W + 10,
+        y: GROUND - h,
+        w: 30 + Math.random() * 12,
+        h: h,
+        passed: false
+      });
+    } else {
+      // Burung muncul di ketinggian yang bervariasi
+      const y = 190 + Math.random() * 40;
+
+      birds.push({
+        x: W + 30,
+        y: y,
+        w: 30,
+        h: 22,
+        phase: Math.random() * 6,
+        passed: false
+      });
+    }
+
+    if (Math.random() < 0.7) {
+      coins.push({
+        x: W + 70,
+        y: 180 + Math.random() * 65,
+        w: 22,
+        h: 22,
+        taken: false
+      });
+    }
+  }
+
+  // Gerakkan semua objek
+  for (const o of obstacles) o.x -= speed * dt;
+  for (const b of birds) b.x -= (speed + 45) * dt;
+  for (const c of coins) c.x -= speed * dt;
+
+  // Hapus objek yang sudah keluar layar
+  obstacles = obstacles.filter(o => o.x + o.w > 0);
+  birds = birds.filter(b => b.x + b.w > 0);
+  coins = coins.filter(c => c.x + c.w > 0 && !c.taken);
+
+  invincible = Math.max(0, invincible - dt);
+
+  // Periksa tabrakan dengan kotak
+  for (const o of obstacles) {
+    if (invincible <= 0 && hit(player, o)) {
+      lives--;
+      livesEl.textContent = lives;
+      invincible = 1.1;
+      o.x = -100;
+
+      if (lives <= 0) {
+        endGame();
+        return;
+      }
+    }
+  }
+
+  // Periksa tabrakan dengan burung
+  for (const b of birds) {
+    const birdBox = {
+      x: b.x - 10,
+      y: b.y - 7,
+      w: 27,
+      h: 18
+    };
+
+    if (invincible <= 0 && hit(player, birdBox)) {
+      lives--;
+      livesEl.textContent = lives;
+      invincible = 1.1;
+      b.x = -100;
+
+      if (lives <= 0) {
+        endGame();
+        return;
+      }
+    }
+  }
+
+  // Ambil koin
+  for (const c of coins) {
+    if (!c.taken && hit(player, c)) {
+      c.taken = true;
+      score += 10;
+    }
+  }
+
+  // Skor bertahan berdasarkan waktu, bukan jumlah frame
+  score += dt * 4;
+  scoreEl.textContent = Math.floor(score);
+}
+
+function draw() {
+  drawBackground();
+
+  for (const c of coins) drawCoin(c);
+  for (const o of obstacles) drawObstacle(o);
+  for (const b of birds) drawBird(b);
+
+  drawPlayer();
+}
+
+function loop(time) {
+  if (!running) return;
+
+  // Delta time mencegah gerakan bergantung pada FPS
+  const dt = lastTime
+    ? Math.min((time - lastTime) / 1000, 0.033)
+    : 1 / 60;
+
+  lastTime = time;
+
+  update(dt);
+  draw();
+
+  if (running) {
+    animationId = requestAnimationFrame(loop);
+  }
+}
+
+// Inisialisasi satu kali saja
+resetGame();
+draw();
+</script>
+
+</body>
+</html>
+
